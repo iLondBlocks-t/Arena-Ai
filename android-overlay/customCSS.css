@@ -1,0 +1,69 @@
+/*
+ * Lightweight interaction polish for the existing Median/GoNative WebView.
+ * Deliberately leaves Arena's page layout, colors, controls, and chat logic alone.
+ */
+:root {
+  --arena-visual-viewport-height: 100vh;
+  -webkit-tap-highlight-color: transparent;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+html {
+  min-height: 100%;
+  overscroll-behavior-y: contain;
+}
+
+body {
+  min-height: 100%;
+  overscroll-behavior-y: contain;
+}
+
+/* Keep scrolling native and momentum-based on Android; never animate every scroll. */
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+button,
+[role="button"],
+input[type="button"],
+input[type="submit"],
+a {
+  touch-action: manipulation;
+}
+
+button,
+[role="button"],
+input[type="button"],
+input[type="submit"] {
+  transition: transform 110ms ease-out, opacity 110ms ease-out;
+  transform-origin: center;
+}
+
+button:active,
+[role="button"]:active,
+input[type="button"]:active,
+input[type="submit"]:active,
+.ai-touch-press {
+  transform: scale(0.97);
+  opacity: 0.88;
+}
+
+:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+/* Keyboard viewport and safe area values are supplied by the Android WebView. */
+@supports (height: 100dvh) {
+  :root { --arena-stable-viewport-height: 100dvh; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
