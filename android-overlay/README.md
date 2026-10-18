@@ -8,7 +8,7 @@ That means a genuine native chat rewrite, reliable backend-preserving API integr
 
 ## Implemented here
 
-- `customCSS.css` and `customJS.js`: restrained WebView-level Android touch feedback, reduced-motion support, viewport/keyboard awareness, and conditional editor visibility. They do not replace app layout, intercept/delay clicks, issue network requests, or alter chat behavior.
+- `customCSS.css` and `customJS.js`: refined responsive styling for controls, code/table readability, reduced-motion support, viewport/keyboard awareness, button press feedback, and accessible one-tap code copying. They do not replace app layout, intercept/delay normal clicks, issue network requests, or alter AI behavior.
 - `patch_apk.py`: safely creates a **new, unsigned** patched APK, turns off the Median wrapper's Android splash and sidebar branding, preserves the configured Arena URL and all other config, replaces only the two custom injection assets, and removes stale v1 signature files. The original APK is never overwritten.
 - `test_patch_apk.py`: regression tests for launch/config preservation, overlay inclusion, signature removal, and non-destructive behavior.
 
@@ -30,7 +30,7 @@ python3 android-overlay/patch_apk.py app-release.apk /tmp/arena-patched-unsigned
 
 ## Build workflow and installation caveat
 
-`.github/workflows/build.yml` now builds an artifact on pushes to this branch (and supports manual dispatch). It patches the supplied APK, aligns it, signs it, verifies the signature, and publishes `arena-patched-android-apk` as a downloadable GitHub Actions artifact for 14 days.
+`.github/workflows/build.yml` runs the patch tests, patches the supplied APK, signs it with Java's JAR/v1 signing, verifies the archive/signature, and publishes `arena-patched-android-apk` as a downloadable GitHub Actions artifact for 14 days. It runs on pushes to `main` or this branch and supports manual dispatch. JAR/v1-only signing is intended for sideload testing; this workflow has no emulator/device, so runtime installation still needs device verification.
 
 If the repository has the `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEYSTORE_PASSWORD` Actions secrets configured, the workflow signs with that keystore. Otherwise it generates an **ephemeral test key** so the artifact is installable as a fresh install. That test signer changes on every build: it cannot update an existing installation, and uninstalling the original app may erase local app data. Do not use ephemeral builds as production releases.
 
