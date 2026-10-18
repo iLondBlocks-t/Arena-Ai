@@ -3,6 +3,7 @@ name: Build patched Arena Android APK
 on:
   push:
     branches:
+      - main
       - arena/e6a59265-arena-ai
   workflow_dispatch:
 
@@ -22,6 +23,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: Run patcher regression tests
+        run: python3 -m unittest discover -s android-overlay -p 'test_*.py' -v
 
       - name: Install Android signing tools
         uses: android-actions/setup-android@v3
