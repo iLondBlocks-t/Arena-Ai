@@ -1,0 +1,88 @@
+name: Build patched Arena Android APK
+
+on:
+  push:
+    branches:
+      - arena/e6a59265-arena-ai
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    name: Patch, align, and sign APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android signing tools
+        uses: android-actions/setup-android@v3
+
+      - name: Install Build Tools
+        run: sdkmanager --install "build-tools;35.0.0"
+
+      - name: Patch Median wrapper assets
+        run: python3 android-overlay/patch_apk.py app-release.apk "$RUNNER_TEMP/arena-unsigned.apk"
+
+      - name: Align and sign APK
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/35.0.0"
+          "$BUILD_TOOLS/zipalign" -f -v 4 "$RUNNER_TEMP/arena-unsigned.apk" "$RUNNER_TEMP/arena-aligned.apk"
+
+          if [[ -n "${KEYSTORE_B64:-}" && -n "${KEY_ALIAS:-}" && -n "${KEYSTORE_PASSWORD:-}" ]]; then
+            echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+            STORE_PASS="$KEYSTORE_PASSWORD"
+            KEY_PASS="${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+            SIGNING_MODE="configured release key"
+          else
+            # This is only a first-install/test signature. A fresh key is made
+            # for every run and intentionally is not exported as a secret.
+            STORE_PASS="$(openssl rand -hex 24)"
+            KEY_PASS="$STORE_PASS"
+            keytool -genkeypair -noprompt \
+              -keystore "$RUNNER_TEMP/test-signing.jks" \
+              -storepass "$STORE_PASS" -keypass "$KEY_PASS" \
+              -alias arena-test -keyalg RSA -keysize 2048 -validity 3650 \
+              -dname "CN=Arena Android Test Build, OU=Development, O=Arena, C=MA"
+            KEYSTORE="$RUNNER_TEMP/test-signing.jks"
+            KEY_ALIAS="arena-test"
+            SIGNING_MODE="ephemeral test key (fresh install only)"
+          fi
+
+          if [[ -z "${KEYSTORE:-}" ]]; then KEYSTORE="$RUNNER_TEMP/release.jks"; fi
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks "$KEYSTORE" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass "pass:$STORE_PASS" \
+            --key-pass "pass:$KEY_PASS" \
+            --out "$RUNNER_TEMP/arena-patched.apk" \
+            "$RUNNER_TEMP/arena-aligned.apk"
+          "$BUILD_TOOLS/apksigner" verify --verbose "$RUNNER_TEMP/arena-patched.apk"
+          echo "APK signing mode: $SIGNING_MODE" >> "$GITHUB_STEP_SUMMARY"
+          echo "This build is a Median/GoNative WebView overlay, not a native chat rewrite." >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$SIGNING_MODE" == "ephemeral test key (fresh install only)" ]]; then
+            echo "The ephemeral test signature changes every run. It cannot update an existing install; uninstalling the current app may erase local data." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload installable APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: arena-patched-android-apk
+          path: ${{ runner.temp }}/arena-patched.apk
+          if-no-files-found: error
+          retention-days: 14

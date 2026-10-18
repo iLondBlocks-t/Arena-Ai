@@ -28,9 +28,13 @@ To produce a patched unsigned archive (this is not installable as-is):
 python3 android-overlay/patch_apk.py app-release.apk /tmp/arena-patched-unsigned.apk
 ```
 
-## Signing/build requirements for a real release
+## Build workflow and installation caveat
 
-Use the original Android project / Median build pipeline and the **original release signing key** to produce a compatible upgrade. The original source project and signing key are not in this repository. If only an APK is available, platform tools can align and sign a package, but signing with a newly generated key creates a different signer and will not be an in-place update. Example commands for an owner who has the matching key and Android Build Tools installed:
+`.github/workflows/build.yml` now builds an artifact on pushes to this branch (and supports manual dispatch). It patches the supplied APK, aligns it, signs it, verifies the signature, and publishes `arena-patched-android-apk` as a downloadable GitHub Actions artifact for 14 days.
+
+If the repository has the `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEYSTORE_PASSWORD` Actions secrets configured, the workflow signs with that keystore. Otherwise it generates an **ephemeral test key** so the artifact is installable as a fresh install. That test signer changes on every build: it cannot update an existing installation, and uninstalling the original app may erase local app data. Do not use ephemeral builds as production releases.
+
+For an in-place update, use the original Android project / Median build pipeline and the **original release signing key**. That source project and key are not in this repository. If only an APK is available, platform tools can align and sign a package, but signing with a newly generated key creates a different signer and will not be an in-place update. Example commands for an owner who has the matching key and Android Build Tools installed:
 
 ```sh
 zipalign -f -v 4 /tmp/arena-patched-unsigned.apk /tmp/arena-patched-aligned.apk
