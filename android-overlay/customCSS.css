@@ -1,0 +1,152 @@
+/*
+ * Arena touch and readability polish for the existing Median/GoNative WebView.
+ * Colors and page structure remain owned by Arena; only controls and content
+ * affordances are enhanced so this stays robust across site updates.
+ */
+:root {
+  --arena-visual-viewport-height: 100vh;
+  --arena-focus-ring: #4b8cff;
+  --arena-code-surface: rgba(127, 127, 127, 0.12);
+  --arena-code-border: rgba(127, 127, 127, 0.24);
+  -webkit-tap-highlight-color: transparent;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+  color-scheme: light dark;
+}
+
+html,
+body {
+  min-height: 100%;
+  overscroll-behavior-y: contain;
+}
+
+/* Keep scrolling native and momentum-based; never animate every scroll. */
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+button,
+[role="button"],
+input[type="button"],
+input[type="submit"],
+a {
+  touch-action: manipulation;
+}
+
+button,
+[role="button"],
+input[type="button"],
+input[type="submit"] {
+  transition: transform 110ms ease-out, opacity 110ms ease-out, box-shadow 140ms ease-out;
+  transform-origin: center;
+}
+
+button:active,
+[role="button"]:active,
+input[type="button"]:active,
+input[type="submit"]:active,
+.ai-touch-press {
+  transform: scale(0.97);
+  opacity: 0.88;
+}
+
+button:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+[contenteditable="true"]:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--arena-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Comfortable tap targets without enforcing page-specific layouts. */
+button,
+[role="button"],
+input[type="button"],
+input[type="submit"] {
+  min-height: 40px;
+}
+
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+  scroll-margin-bottom: env(safe-area-inset-bottom, 12px);
+}
+
+/* Readable, horizontally scrollable code with a low-distraction surface. */
+pre {
+  position: relative;
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--arena-code-border);
+  border-radius: 12px;
+  background: var(--arena-code-surface);
+  -webkit-overflow-scrolling: touch;
+}
+
+pre code {
+  white-space: pre;
+  overflow-wrap: normal;
+  tab-size: 2;
+}
+
+code:not(pre code) {
+  padding: 0.12em 0.38em;
+  border-radius: 5px;
+  background: var(--arena-code-surface);
+  overflow-wrap: anywhere;
+}
+
+.arena-code-copy {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  right: 8px;
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid var(--arena-code-border);
+  border-radius: 9px;
+  background: Canvas;
+  color: CanvasText;
+  font: 500 12px/1.2 system-ui, sans-serif;
+  cursor: pointer;
+  opacity: 0.86;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.arena-code-copy:active {
+  transform: scale(0.96);
+}
+
+.arena-code-copy[aria-live="polite"] {
+  min-width: 54px;
+}
+
+img,
+video,
+svg {
+  max-width: 100%;
+}
+
+table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@supports (height: 100dvh) {
+  :root { --arena-stable-viewport-height: 100dvh; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

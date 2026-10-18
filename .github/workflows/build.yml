@@ -1,0 +1,94 @@
+name: Build patched Arena Android APK
+
+on:
+  push:
+    branches:
+      - main
+      - arena/e6a59265-arena-ai
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    name: Patch and sign APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Run source checks
+        run: |
+          python3 -m unittest discover -s android-overlay -p 'test_*.py' -v
+          node --check android-overlay/customJS.js
+
+      - name: Patch Median wrapper assets
+        run: python3 android-overlay/patch_apk.py app-release.apk "$RUNNER_TEMP/arena-unsigned.apk"
+
+      - name: Sign and verify APK
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${KEYSTORE_B64:-}" && -n "${KEY_ALIAS:-}" && -n "${KEYSTORE_PASSWORD:-}" ]]; then
+            echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+            KEYSTORE="$RUNNER_TEMP/release.jks"
+            STORE_PASS="$KEYSTORE_PASSWORD"
+            KEY_PASS="${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+            SIGNING_MODE="configured keystore"
+          else
+            # Android requires signed packages. This temporary key enables
+            # first-install testing only; it is not stable between workflow runs.
+            STORE_PASS="$(openssl rand -hex 24)"
+            KEY_PASS="$STORE_PASS"
+            KEY_ALIAS="arena-test"
+            KEYSTORE="$RUNNER_TEMP/test-signing.jks"
+            keytool -genkeypair -noprompt \
+              -keystore "$KEYSTORE" \
+              -storepass "$STORE_PASS" -keypass "$KEY_PASS" \
+              -alias "$KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 3650 \
+              -dname "CN=Arena Android Test Build, OU=Development, O=Arena, C=MA"
+            SIGNING_MODE="ephemeral test key (fresh install only)"
+          fi
+
+          jarsigner -keystore "$KEYSTORE" \
+            -storepass "$STORE_PASS" -keypass "$KEY_PASS" \
+            -digestalg SHA-256 -sigalg SHA256withRSA \
+            -signedjar "$RUNNER_TEMP/arena-patched.apk" \
+            "$RUNNER_TEMP/arena-unsigned.apk" "$KEY_ALIAS"
+          jarsigner -verify -verbose -certs "$RUNNER_TEMP/arena-patched.apk"
+          python3 - "$RUNNER_TEMP/arena-patched.apk" <<'PY'
+          import sys, zipfile
+          with zipfile.ZipFile(sys.argv[1]) as apk:
+              bad = apk.testzip()
+              assert bad is None, f'Corrupt archive entry: {bad}'
+              names = set(apk.namelist())
+              assert 'AndroidManifest.xml' in names and 'classes.dex' in names
+              assert any(n.startswith('META-INF/') and n.upper().endswith('.RSA') for n in names), 'APK signature missing'
+          print('APK archive and JAR signature entries verified.')
+          PY
+          echo "Signing mode: $SIGNING_MODE" >> "$GITHUB_STEP_SUMMARY"
+          echo "Signature verification: JAR/v1 signature verified. No Android device/emulator is available in this workflow, so runtime installation was not tested." >> "$GITHUB_STEP_SUMMARY"
+          echo "This is a Median/GoNative WebView overlay, not a native chat rewrite." >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$SIGNING_MODE" == "ephemeral test key (fresh install only)" ]]; then
+            echo "Ephemeral signer changes each run. It cannot update an existing installation; uninstalling the original app may erase local app data." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload signed APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: arena-patched-android-apk
+          path: ${{ runner.temp }}/arena-patched.apk
+          if-no-files-found: error
+          retention-days: 14
